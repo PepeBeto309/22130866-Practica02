@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS estudiantes (
+    id SERIAL PRIMARY KEY,
+    matricula VARCHAR(30) NOT NULL UNIQUE,
+    nombre VARCHAR(100) NOT NULL,
+    apellido VARCHAR(100) NOT NULL,
+    correo VARCHAR(150) NOT NULL,
+    fecha_nacimiento DATE NOT NULL,
+    creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
