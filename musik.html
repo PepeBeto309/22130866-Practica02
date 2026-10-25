@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mi Diario de Discos</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root { --h: 160; --s: 65; }
+  body {
+    background:
+      radial-gradient(1100px 600px at 15% -10%, hsl(var(--h) calc(var(--s) * .6%) 24% / .9), transparent 65%),
+      radial-gradient(900px 500px at 100% 0%, hsl(calc(var(--h) + 40) calc(var(--s) * .5%) 18% / .7), transparent 60%),
+      hsl(var(--h) 25% 6%);
+    background-attachment: fixed;
+    transition: background .6s;
+  }
+  .hero   { background: linear-gradient(180deg, hsl(var(--h) calc(var(--s) * .6%) 22% / .85), hsl(var(--h) 25% 9% / .55)); border: 1px solid hsl(var(--h) 25% 22%); }
+  .panel  { background: hsl(var(--h) 25% 9% / .8); border: 1px solid hsl(var(--h) 25% 20%); }
+  .row:hover { background: hsl(var(--h) 25% 13% / .7); }
+  .accent-text { color: hsl(var(--h) calc(var(--s) * 1%) 66%); }
+  .accent-bg   { background: hsl(var(--h) calc(var(--s) * 1%) 58%); color: #0b0b0f; }
+  .accent-bg:hover { filter: brightness(1.12); }
+  .soft-btn { background: hsl(var(--h) 20% 16%); }
+  .soft-btn:hover { background: hsl(var(--h) 20% 22%); }
+  .field { background: hsl(var(--h) 25% 5% / .8); border: 1px solid hsl(var(--h) 20% 24%); outline: none; }
+  .field:focus { border-color: hsl(var(--h) calc(var(--s) * 1%) 58%); }
+  .card.open { border-color: hsl(var(--h) calc(var(--s) * .8%) 45%); }
+  .chev { transition: transform .2s; }
+  .card.open .chev { transform: rotate(180deg); }
+  input[type=checkbox] { accent-color: hsl(var(--h) calc(var(--s) * 1%) 58%); }
+  ::-webkit-scrollbar { width: 10px; }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--h) 15% 22%); border-radius: 8px; }
+</style>
+</head>
+<body class="text-zinc-200 min-h-screen font-sans">
+
+<div class="max-w-6xl mx-auto px-4 py-6">
+
+  <!-- Barra superior -->
+  <div class="flex flex-col md:flex-row gap-3 md:items-center mb-6">
+    <form id="searchForm" class="flex-1 flex gap-2">
+      <input id="searchInput" placeholder="Busca un álbum: ej. OK Computer Radiohead" class="field flex-1 rounded-full px-4 py-2 text-sm">
+      <button class="accent-bg font-semibold text-sm px-4 py-2 rounded-full">Buscar</button>
+    </form>
+    <div class="flex gap-2 items-center">
+      <span id="userChip" class="hidden soft-btn text-xs px-3 py-2 rounded-full max-w-[9rem] truncate"></span>
+      <select id="library" class="field rounded-full px-3 py-2 text-sm max-w-[14rem]"></select>
+      <button id="btnSettings" class="soft-btn text-sm px-3 py-2 rounded-full" title="Ajustes">⚙️</button>
+    </div>
+  </div>
+
+  <div id="results" class="panel rounded-2xl p-2 mb-6 hidden"></div>
+
+  <header id="albumHeader" class="hero rounded-2xl p-6 md:p-8 flex flex-col md:flex-row gap-6"></header>
+
+  <!-- Canciones -->
+  <section class="mt-8">
+    <div class="flex items-center justify-between mb-3 px-1">
+      <h2 id="tracksTitle" class="text-xs uppercase tracking-wider text-zinc-400 font-semibold"></h2>
+      <div class="flex gap-2">
+        <button id="btnExpand" class="soft-btn text-xs px-3 py-1.5 rounded-full">Expandir todo</button>
+        <button id="btnCollapse" class="soft-btn text-xs px-3 py-1.5 rounded-full">Contraer todo</button>
+      </div>
+    </div>
+    <ul id="tracklist" class="grid grid-cols-1 md:grid-cols-2 gap-3 items-start"></ul>
+  </section>
+</div>
+
+<!-- Modal de ajustes -->
+<div id="modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 items-center justify-center p-4">
+  <div class="panel rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col" style="background:hsl(var(--h) 25% 8%)">
+    <div class="p-5 border-b border-white/10 flex justify-between items-center">
+      <h2 class="font-semibold text-lg">Ajustes</h2>
+      <button id="btnClose" class="text-zinc-400 hover:text-white text-xl">✕</button>
+    </div>
+
+    <div class="p-5 overflow-auto space-y-8">
+
+      <section>
+        <h3 class="font-semibold mb-3">👤 Perfil y respaldo de calificaciones</h3>
+        <label class="text-xs uppercase tracking-wider text-zinc-400">Nombre de usuario</label>
+        <input id="userName" maxlength="30" placeholder="Ej. Carlos" class="field w-full rounded-lg px-3 py-2 text-sm mt-1 mb-3">
+        <div class="flex flex-wrap gap-2">
+          <button id="btnDownload" class="accent-bg text-sm font-semibold px-3 py-2 rounded-lg">⬇️ Descargar mis calificaciones (.json)</button>
+          <label class="soft-btn text-sm px-3 py-2 rounded-lg cursor-pointer">📂 Cargar archivo .json
+            <input id="fileImport" type="file" accept=".json,application/json" class="hidden">
+          </label>
+          <button id="btnExport" class="soft-btn text-sm px-3 py-2 rounded-lg">Copiar JSON</button>
+        </div>
+        <p id="ioMsg" class="text-sm mt-3 hidden"></p>
+        <p class="text-xs text-zinc-500 mt-3">El archivo incluye tu nombre, calificaciones, notas, etiquetas y todos los discos de tu biblioteca. Al cargarlo se combina con lo que ya tienes.</p>
+      </section>
+
+      <section>
+        <h3 class="font-semibold mb-2">💿 Editar disco actual (JSON)</h3>
+        <p class="text-sm text-zinc-400 mb-3">Por si un disco no aparece en la búsqueda. Campos: <code class="accent-text">title, artist, year, genre, cover</code> y <code class="accent-text">tracks</code> (<code class="accent-text">{"title","duration"}</code>). Si cambias título o artista se crea un disco nuevo en tu biblioteca.</p>
+        <textarea id="jsonEditor" spellcheck="false" class="field w-full h-56 rounded-lg p-3 font-mono text-xs text-zinc-300"></textarea>
+        <p id="jsonError" class="text-red-400 text-sm mt-2 hidden"></p>
+        <div class="flex flex-wrap gap-2 mt-3 justify-between">
+          <div class="flex flex-wrap gap-2">
+            <button id="btnExample" class="soft-btn text-sm px-3 py-2 rounded-lg">Cargar ejemplo</button>
+            <button id="btnReset" class="soft-btn text-sm px-3 py-2 rounded-lg hover:!bg-red-900/60">Reiniciar datos de este disco</button>
+            <button id="btnDelete" class="soft-btn text-sm px-3 py-2 rounded-lg hover:!bg-red-900/60">Quitar de mi biblioteca</button>
+          </div>
+          <button id="btnApply" class="accent-bg text-sm font-semibold px-4 py-2 rounded-lg">Aplicar disco</button>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================= DATOS BASE ================= */
+const EXAMPLE_ALBUM = {
+  title: "Random Access Memories", artist: "Daft Punk", year: 2013,
+  genre: "Electrónica / Disco / Funk", cover: "", source: "Ejemplo",
+  tracks: [
+    { title: "Give Life Back to Music", duration: "4:35" },
+    { title: "The Game of Love", duration: "5:21" },
+    { title: "Giorgio by Moroder", duration: "9:04" },
+    { title: "Within", duration: "3:48" },
+    { title: "Instant Crush", duration: "5:37" },
+    { title: "Lose Yourself to Dance", duration: "5:53" },
+    { title: "Touch", duration: "8:18" },
+    { title: "Get Lucky", duration: "6:09" },
+    { title: "Beyond", duration: "4:50" },
+    { title: "Motherboard", duration: "5:41" },
+    { title: "Fragments of Time", duration: "4:39" },
+    { title: "Doin' It Right", duration: "4:11" },
+    { title: "Contact", duration: "6:21" }
+  ]
+};
+
+const PRESET_TAGS = [
+  { id: 'fav',    label: '⭐ Favorita',      color: '#facc15' },
+  { id: 'sad',    label: '💧 La más triste', color: '#38bdf8' },
+  { id: 'energy', label: '⚡ Energética',     color: '#fb923c' },
+  { id: 'night',  label: '🌙 Nocturna',       color: '#a78bfa' },
+  { id: 'chill',  label: '🌿 Relajante',      color: '#4ade80' },
+  { id: 'rep',    label: '🔁 Para repetir',   color: '#f472b6' }
+];
+
+const KEY = 'diario-disco-v3';
+const OLD_KEY = 'diario-disco-v2';
+
+/* ================= UTILIDADES ================= */
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const slug = s => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function parseRating(str) {
+  str = String(str).trim().replace(',', '.');
+  if (str === '' || str === '.') return null;
+  const n = parseFloat(str);
+  if (isNaN(n)) return null;
+  return Math.round(Math.min(10, Math.max(0, n)) * 10) / 10;
+}
+function cleanRating(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return (isFinite(n) && n >= 0 && n <= 10) ? Math.round(n * 10) / 10 : null;
+}
+function fmtMs(ms) {
+  if (!ms) return '—';
+  const s = Math.round(ms / 1000);
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+
+/* ================= ESTADO ================= */
+let state = load() || newState();
+const openCards = new Set(), openTags = new Set();
+
+function newState() {
+  return { user: '', current: 'example', customTags: [], albums: { example: blankEntry(EXAMPLE_ALBUM) } };
+}
+function blankEntry(album) {
+  return { album: JSON.parse(JSON.stringify(album)), albumNotes: '', tracks: {}, theme: null };
+}
+function load() {
+  try {
+    let s = null;
+    const raw = localStorage.getItem(KEY);
+    if (raw) s = JSON.parse(raw);
+    else {
+      const old = localStorage.getItem(OLD_KEY);
+      if (old) {
+        s = JSON.parse(old);
+        Object.values(s.albums || {}).forEach(al => Object.values(al.tracks || {}).forEach(t => {
+          t.rating = t.rating ? t.rating * 2 : null;
+        }));
+      }
+    }
+    if (s && s.albums && s.albums[s.current]) { s.user = s.user || ''; s.customTags = s.customTags || []; return s; }
+  } catch (e) {}
+  return null;
+}
+let saveTimer;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }, 150);
+}
+const A = () => state.albums[state.current];
+function td(i) { const a = A(); return a.tracks[i] || (a.tracks[i] = { rating: null, tags: [], notes: '' }); }
+const allTags = () => [...PRESET_TAGS, ...state.customTags];
+
+/* ================= TEMA DINÁMICO ================= */
+function hashHue(str) { let h = 0; for (const c of str) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
+
+function extractTheme(url) {
+  return new Promise(resolve => {
+    if (!url) return resolve(null);
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const c = document.createElement('canvas'); c.width = c.height = 48;
+        const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0, 48, 48);
+        const px = ctx.getImageData(0, 0, 48, 48).data;
+        const bins = Array.from({ length: 36 }, () => ({ w: 0, hs: 0, ss: 0 }));
+        let total = 0;
+        for (let i = 0; i < px.length; i += 4) {
+          const r = px[i] / 255, g = px[i+1] / 255, b = px[i+2] / 255;
+          const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min;
+          let h = 0, s = 0;
+          if (d) {
+            s = d / (1 - Math.abs(2 * l - 1));
+            h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+            h = (h * 60 + 360) % 360;
+          }
+          const w = s * (1 - Math.abs(2 * l - 1)) ** 2;
+          const bin = bins[Math.floor(h / 10) % 36];
+          bin.w += w; bin.hs += h * w; bin.ss += s * w; total += w;
+        }
+        if (total < 1) return resolve({ h: 220, s: 10 });
+        const best = bins.reduce((a, b) => (b.w > a.w ? b : a));
+        resolve({ h: Math.round(best.hs / best.w), s: Math.max(35, Math.min(80, Math.round((best.ss / best.w) * 100))) });
+      } catch (e) { resolve(null); }
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+function applyTheme(t) {
+  const root = document.documentElement.style;
+  root.setProperty('--h', t.h); root.setProperty('--s', t.s);
+}
+async function ensureTheme() {
+  const a = A();
+  if (!a.theme) {
+    a.theme = (await extractTheme(a.album.cover)) || { h: hashHue(a.album.title + a.album.artist), s: 60 };
+    save();
+  }
+  applyTheme(a.theme);
+}
+
+function placeholderCover(h) {
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${h},70%,55%)"/><stop offset="1" stop-color="hsl(${(h+60)%360},60%,25%)"/></linearGradient></defs><rect width="400" height="400" fill="url(#g)"/><circle cx="200" cy="200" r="140" fill="#0b0b0f" opacity=".85"/><circle cx="200" cy="200" r="52" fill="hsl(${h},70%,60%)"/><circle cx="200" cy="200" r="8" fill="#0b0b0f"/></svg>`);
+}
+const NOCOVER = placeholderCover(220);
+
+/* ================= PROVEEDOR 1: MUSICBRAINZ + COVER ART ARCHIVE ================= */
+const MB = 'https://musicbrainz.org/ws/2';
+let lastMB = 0;
+
+async function mbFetch(path) {
+  const wait = lastMB + 1100 - Date.now();
+  if (wait > 0) await sleep(wait);
+  lastMB = Date.now();
+  const r = await fetch(MB + path);
+  if (!r.ok) throw new Error('MusicBrainz respondió ' + r.status);
+  return r.json();
+}
+
+const BAD_SECONDARY = ['Compilation', 'Live', 'Remix', 'DJ-mix', 'Demo', 'Interview', 'Spokenword', 'Audiobook', 'Audio drama', 'Field recording'];
+const artistName = ac => (ac || []).map(x => (x.name || x.artist?.name || '') + (x.joinphrase || '')).join('').trim();
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+function mbQuery(q) {
+  const words = (q.toLowerCase().match(/[\p{L}\p{N}]+/gu) || []).slice(0, 8);
+  if (!words.length) return null;
+  const terms = words.map(w => `(releasegroup:${w} OR artist:${w})`).join(' AND ');
+  return `(${terms}) AND primarytype:album`;
+}
+
+async function searchMB(q) {
+  const query = mbQuery(q);
+  if (!query) return [];
+  const data = await mbFetch(`/release-group?query=${encodeURIComponent(query)}&limit=40&fmt=json`);
+  const seen = new Set();
+  return (data['release-groups'] || [])
+    .filter(rg => {
+      if (rg['primary-type'] && rg['primary-type'] !== 'Album') return false;
+      if ((rg['secondary-types'] || []).some(t => BAD_SECONDARY.includes(t))) return false;
+      const k = (rg.title + '|' + artistName(rg['artist-credit'])).toLowerCase();
+      if (seen.has(k)) return false; seen.add(k);
+      return true;
+    })
+    .slice(0, 8)
+    .map(rg => {
+      const tags = (rg.tags || []).slice().sort((a, b) => b.count - a.count).slice(0, 2).map(t => cap(t.name));
+      return {
+        key: 'mb-' + rg.id, source: 'musicbrainz', id: rg.id,
+        title: rg.title, artist: artistName(rg['artist-credit']),
+        year: (rg['first-release-date'] || '').slice(0, 4),
+        genre: tags.join(' / '),
+        thumb: `https://coverartarchive.org/release-group/${rg.id}/front-250`
+      };
+    });
+}
+
+function testImage(url, ms = 8000) {
+  return new Promise(resolve => {
+    const img = new Image();
+    const t = setTimeout(() => resolve(false), ms);
+    img.onload = () => { clearTimeout(t); resolve(true); };
+    img.onerror = () => { clearTimeout(t); resolve(false); };
+    img.src = url;
+  });
+}
+
+async function loadMB(item) {
+  let list = (await mbFetch(`/release?release-group=${item.id}&status=official&inc=media&limit=100&fmt=json`)).releases || [];
+  if (!list.length) list = (await mbFetch(`/release?release-group=${item.id}&inc=media&limit=100&fmt=json`)).releases || [];
+  if (!list.length) throw new Error('el álbum no tiene ediciones registradas');
+
+  const count = r => (r.media || []).reduce((s, m) => s + (m['track-count'] || 0), 0);
+  const freq = {};
+  list.forEach(r => { const c = count(r); if (c > 0) freq[c] = (freq[c] || 0) + 1; });
+  const modeEntry = Object.entries(freq).sort((a, b) => b[1] - a[1] || a[0] - b[0])[0];
+  const mode = modeEntry ? +modeEntry[0] : 0;
+  const chosen = list.filter(r => count(r) === mode)
+    .sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'))[0] || list[0];
+
+  const full = await mbFetch(`/release/${chosen.id}?inc=recordings&fmt=json`);
+  const tracks = [];
+  (full.media || []).forEach(m => (m.tracks || []).forEach(t =>
+    tracks.push({ title: t.title, duration: fmtMs(t.length ?? t.recording?.length) })));
+  if (!tracks.length) throw new Error('la edición no tiene pistas registradas');
+
+  let cover = `https://coverartarchive.org/release-group/${item.id}/front-500`;
+  if (!(await testImage(cover))) {
+    cover = '';
+    try {
+      const id = await itunesFind(item.title, item.artist);
+      if (id) cover = (await itunesLookup(id)).cover;
+    } catch (e) {}
+  }
+
+  return {
+    title: item.title, artist: item.artist,
+    year: item.year || (full.date || '').slice(0, 4),
+    genre: item.genre || '', cover, tracks, source: 'MusicBrainz'
+  };
+}
+
+/* ================= PROVEEDOR 2 (RESPALDO): ITUNES ================= */
+async function searchItunes(q) {
+  const r = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=album&media=music&limit=30`);
+  const data = await r.json();
+  const seen = new Set();
+  return data.results.filter(a => {
+    if (a.collectionType && a.collectionType !== 'Album') return false;
+    if (/-\s*Single$/i.test(a.collectionName || '')) return false;
+    if (a.trackCount && a.trackCount < 2) return false;
+    const k = (a.collectionName + '|' + a.artistName).toLowerCase();
+    if (seen.has(k)) return false; seen.add(k);
+    return true;
+  }).slice(0, 8).map(a => ({
+    key: 'itunes-' + a.collectionId, source: 'itunes', id: a.collectionId,
+    title: a.collectionName, artist: a.artistName,
+    year: (a.releaseDate || '').slice(0, 4), genre: a.primaryGenreName || '',
+    thumb: a.artworkUrl100, extra: a.trackCount + ' pistas'
+  }));
+}
+async function itunesLookup(id) {
+  const r = await fetch(`https://itunes.apple.com/lookup?id=${id}&entity=song`);
+  const data = (await r.json()).results;
+  const col = data.find(x => x.wrapperType === 'collection');
+  if (!col) throw new Error('no se encontró el álbum');
+  const tracks = data.filter(x => x.wrapperType === 'track')
+    .sort((a, b) => (a.discNumber - b.discNumber) || (a.trackNumber - b.trackNumber))
+    .map(t => ({ title: t.trackName, duration: fmtMs(t.trackTimeMillis) }));
+  return {
+    title: col.collectionName, artist: col.artistName,
+    year: (col.releaseDate || '').slice(0, 4), genre: col.primaryGenreName || '',
+    cover: (col.artworkUrl100 || '').replace('100x100bb', '600x600bb'),
+    tracks, source: 'iTunes'
+  };
+}
+async function itunesFind(title, artist) {
+  const r = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(artist + ' ' + title)}&entity=album&media=music&limit=5`);
+  const data = (await r.json()).results;
+  const norm = s => String(s).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+  const hit = data.find(a => norm(a.collectionName).startsWith(norm(title)) && norm(a.artistName).includes(norm(artist).slice(0, 6)));
+  return hit ? hit.collectionId : null;
+}
+
+/* ================= BÚSQUEDA (UI) ================= */
+const results = document.getElementById('results');
+const found = new Map();
+let busy = false;
+
+document.getElementById('searchForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const q = document.getElementById('searchInput').value.trim();
+  if (!q || busy) return;
+  results.classList.remove('hidden');
+  results.innerHTML = `<p class="p-3 text-sm text-zinc-400">Buscando "${esc(q)}" en MusicBrainz…</p>`;
+  let items = [], note = '', mbError = '';
+  try { items = await searchMB(q); } catch (err) { mbError = err.message; }
+  if (!items.length) {
+    results.innerHTML = `<p class="p-3 text-sm text-zinc-400">${mbError ? 'MusicBrainz no respondió' : 'Sin resultados en MusicBrainz'}; probando con iTunes…</p>`;
+    try { items = await searchItunes(q); note = 'Resultados de iTunes (respaldo).'; }
+    catch (err) {
+      results.innerHTML = `<p class="p-3 text-sm text-red-400">No se pudo conectar con ninguna fuente (${esc(mbError || err.message)}). Revisa tu conexión.</p>`;
+      return;
+    }
+  }
+  if (!items.length) {
+    results.innerHTML = `<p class="p-3 text-sm text-zinc-400">No se encontraron álbumes. Prueba con "álbum + artista" o usa la edición manual en ⚙️.</p>`;
+    return;
+  }
+  found.clear(); items.forEach(it => found.set(it.key, it));
+  results.innerHTML = (note ? `<p class="px-3 pt-2 text-xs text-zinc-500">${note}</p>` : '') +
+    items.map(a => `
+      <button data-key="${esc(a.key)}" class="row w-full flex items-center gap-3 p-2 rounded-xl text-left">
+        <img src="${esc(a.thumb)}" loading="lazy" onerror="this.onerror=null;this.src='${NOCOVER}'" class="w-12 h-12 rounded-md object-cover bg-zinc-800 shrink-0">
+        <span class="min-w-0 flex-1">
+          <span class="block font-medium truncate">${esc(a.title)}</span>
+          <span class="block text-xs text-zinc-400 truncate">${[a.artist, a.year, a.genre, a.extra].filter(Boolean).map(esc).join(' · ')}</span>
+        </span>
+        ${state.albums[a.key] ? '<span class="text-xs accent-text shrink-0">En tu biblioteca</span>' : ''}
+      </button>`).join('') +
+    `<button id="closeResults" class="w-full text-xs text-zinc-500 hover:text-zinc-300 py-2">Cerrar resultados</button>`;
+});
+
+results.addEventListener('click', async e => {
+  if (e.target.id === 'closeResults') { results.classList.add('hidden'); return; }
+  const btn = e.target.closest('button[data-key]');
+  if (!btn || busy) return;
+  const item = found.get(btn.dataset.key);
+  if (!item) return;
+  if (state.albums[item.key]) { results.classList.add('hidden'); switchTo(item.key); return; }
+
+  busy = true;
+  btn.innerHTML = '<span class="p-3 text-sm text-zinc-400">Cargando pistas y portada… (puede tardar unos segundos)</span>';
+  let album = null, lastErr = '';
+  try {
+    album = item.source === 'musicbrainz' ? await loadMB(item) : await itunesLookup(item.id);
+  } catch (err) {
+    lastErr = err.message;
+    if (item.source === 'musicbrainz') {
+      try {
+        const id = await itunesFind(item.title, item.artist);
+        if (id) { album = await itunesLookup(id); album.title = item.title; album.artist = item.artist; album.year = item.year || album.year; }
+      } catch (e2) {}
+    }
+  }
+  busy = false;
+  if (!album) {
+    results.insertAdjacentHTML('afterbegin', `<p class="px-3 pt-2 text-sm text-red-400">No se pudo cargar el álbum (${esc(lastErr)}). Inténtalo de nuevo o usa la edición manual.</p>`);
+    btn.innerHTML = '<span class="p-3 text-sm text-zinc-400">Error — vuelve a intentarlo</span>';
+    return;
+  }
+  state.albums[item.key] = blankEntry(album);
+  results.classList.add('hidden');
+  switchTo(item.key);
+});
+
+async function switchTo(key) {
+  state.current = key; openCards.clear(); openTags.clear();
+  save(); renderLibrary(); renderAll();
+  await ensureTheme();
+  renderAll();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ================= RENDER ================= */
+function renderLibrary() {
+  document.getElementById('library').innerHTML = Object.entries(state.albums).map(([k, v]) =>
+    `<option value="${esc(k)}" ${k === state.current ? 'selected' : ''}>${esc(v.album.title)} — ${esc(v.album.artist)}</option>`).join('');
+}
+document.getElementById('library').addEventListener('change', e => switchTo(e.target.value));
+
+function renderUser() {
+  const chip = document.getElementById('userChip');
+  if (state.user) { chip.textContent = '👤 ' + state.user; chip.classList.remove('hidden'); }
+  else chip.classList.add('hidden');
+}
+
+function avgRating() {
+  const v = Object.values(A().tracks).map(t => t.rating).filter(r => r !== null && r !== undefined);
+  return v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : '—';
+}
+function ratedCount() {
+  return Object.values(A().tracks).filter(t => t.rating !== null && t.rating !== undefined).length;
+}
+
+function renderHeader() {
+  const e = A(), a = e.album, h = e.theme ? e.theme.h : 160;
+  const meta = [a.year, a.genre].filter(Boolean).map(esc);
+  document.getElementById('albumHeader').innerHTML = `
+    <img src="${esc(a.cover || placeholderCover(h))}" alt="Portada de ${esc(a.title)}" crossorigin="anonymous"
+         onerror="this.onerror=null;this.src='${placeholderCover(h)}'"
+         class="w-52 h-52 md:w-60 md:h-60 rounded-xl object-cover shadow-2xl shadow-black/60 mx-auto md:mx-0 shrink-0 bg-zinc-800">
+    <div class="flex-1 min-w-0 flex flex-col">
+      <span class="text-xs uppercase tracking-widest accent-text font-semibold">Álbum${state.user ? ' · reseña de ' + esc(state.user) : ''}</span>
+      <h1 class="text-3xl md:text-5xl font-extrabold leading-tight mt-1 break-words">${esc(a.title)}</h1>
+      <p class="mt-2 text-zinc-300"><span class="font-semibold text-white">${esc(a.artist)}</span>${meta.length ? ' · <span class="text-zinc-400">' + meta.join(' · ') + '</span>' : ''}</p>
+      <p class="text-sm text-zinc-400 mt-1">${(a.tracks || []).length} canciones · Promedio: <span class="accent-text font-semibold">${avgRating()}</span> / 10 · ${ratedCount()} calificadas${a.source ? ' · <span class="text-zinc-500">Datos: ' + esc(a.source) + '</span>' : ''}</p>
+      <label class="text-xs uppercase tracking-wider text-zinc-400 mt-4 mb-1">Notas del disco</label>
+      <textarea id="albumNotes" rows="3" placeholder="Reflexiones generales sobre el álbum completo..."
+        class="field w-full flex-1 rounded-lg p-3 text-sm resize-y">${esc(e.albumNotes)}</textarea>
+    </div>`;
+  document.getElementById('albumNotes').addEventListener('input', ev => { A().albumNotes = ev.target.value; save(); });
+}
+
+function chip(t, small) {
+  const size = small ? 'text-[11px] px-2 py-0.5' : 'text-xs px-2.5 py-1';
+  return `<span style="background:${t.color}22;border:1px solid ${t.color};color:${t.color}" class="${size} rounded-full whitespace-nowrap">${esc(t.label)}</span>`;
+}
+
+function renderTracks() {
+  const tags = allTags();
+  const tracks = A().album.tracks || [];
+  document.getElementById('tracksTitle').textContent = `Canciones · ${tracks.length}`;
+  document.getElementById('tracklist').innerHTML = tracks.map((t, idx) => {
+    const i = idx + 1, d = td(i);
+    const selected = tags.filter(x => d.tags.includes(x.id));
+    const open = openCards.has(i), tagsOpen = openTags.has(i);
+    const hasRating = d.rating !== null && d.rating !== undefined;
+    return `
+    <li class="card panel rounded-xl overflow-hidden transition-colors ${open ? 'open' : ''}">
+      <button type="button" data-act="toggle" data-i="${i}" aria-expanded="${open}"
+              class="row w-full flex items-center gap-3 px-4 py-3 text-left">
+        <span class="w-6 shrink-0 text-sm text-zinc-500 tabular-nums">${i}</span>
+        <span class="min-w-0 flex-1">
+          <span class="block font-medium truncate">${esc(t.title)}</span>
+          <span class="flex items-center gap-1 mt-1 overflow-hidden min-h-[1.25rem]">
+            ${selected.slice(0, 2).map(x => chip(x, true)).join('')}
+            ${selected.length > 2 ? `<span class="text-[11px] text-zinc-400">+${selected.length - 2}</span>` : ''}
+            ${!selected.length ? `<span class="text-[11px] text-zinc-600">Sin etiquetas</span>` : ''}
+          </span>
+        </span>
+        ${d.notes ? '<span class="text-sm shrink-0" title="Tiene nota">📝</span>' : ''}
+        <span class="shrink-0 text-sm font-semibold tabular-nums rounded-lg px-2 py-1 ${hasRating ? 'accent-bg' : 'soft-btn text-zinc-500'}">${hasRating ? d.rating : '—'}</span>
+        <span class="shrink-0 w-11 text-right text-xs text-zinc-400 tabular-nums">${esc(t.duration)}</span>
+        <span class="chev shrink-0 text-zinc-400 text-xs">▼</span>
+      </button>
+
+      ${open ? `
+      <div class="px-4 pb-4 pt-3 border-t border-white/10 space-y-4">
+
+        <div class="flex items-center gap-2">
+          <label class="text-xs uppercase tracking-wider text-zinc-400">Calificación</label>
+          <input data-act="rating" data-i="${i}" type="text" inputmode="decimal" autocomplete="off" maxlength="4"
+                 placeholder="—" value="${d.rating ?? ''}" title="De 0 a 10 (un decimal)"
+                 class="field w-16 text-center rounded-lg px-2 py-1 text-sm tabular-nums accent-text font-semibold">
+          <span class="text-xs text-zinc-500">/ 10</span>
+        </div>
+
+        <div>
+          <div class="flex flex-wrap gap-1.5 items-center">
+            ${selected.map(x => chip(x)).join('')}
+            <button data-act="tagpanel" data-i="${i}" class="soft-btn text-xs px-2.5 py-1 rounded-full">🏷️ Etiquetas${selected.length ? ` (${selected.length})` : ''} ${tagsOpen ? '▴' : '▾'}</button>
+          </div>
+          ${tagsOpen ? `
+          <div class="mt-3 rounded-xl p-3" style="background:hsl(var(--h) 25% 6% / .7);border:1px solid hsl(var(--h) 20% 20%)">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+              ${tags.map(x => `
+                <label class="flex items-center gap-2 text-sm py-1 cursor-pointer">
+                  <input type="checkbox" data-act="tagcheck" data-i="${i}" data-id="${esc(x.id)}" ${d.tags.includes(x.id) ? 'checked' : ''}>
+                  <span style="color:${x.color}">●</span><span class="flex-1">${esc(x.label)}</span>
+                  ${x.id.startsWith('c_') ? `<button data-act="deltag" data-id="${esc(x.id)}" title="Eliminar etiqueta de todas las canciones" class="text-zinc-500 hover:text-red-400 text-xs">✕</button>` : ''}
+                </label>`).join('')}
+            </div>
+            <form data-act="addtag" class="mt-3 pt-3 border-t border-white/10 flex flex-wrap gap-2 items-center">
+              <input name="label" required maxlength="24" placeholder="Nueva etiqueta" class="field rounded-lg px-3 py-1.5 text-sm min-w-0 flex-1">
+              <input name="color" type="color" value="#34d399" class="w-10 h-9 bg-transparent border-0 cursor-pointer">
+              <button class="accent-bg text-sm font-semibold px-3 py-1.5 rounded-lg">Crear</button>
+            </form>
+          </div>` : ''}
+        </div>
+
+        <div>
+          <label class="text-xs uppercase tracking-wider text-zinc-400">Notas</label>
+          <textarea data-act="notetext" data-i="${i}" rows="3" placeholder="¿Qué te hace sentir? ¿Por qué destaca?"
+            class="field w-full rounded-lg p-3 text-sm resize-y mt-1">${esc(d.notes)}</textarea>
+        </div>
+      </div>` : ''}
+    </li>`;
+  }).join('');
+}
+function renderAll() { renderUser(); renderHeader(); renderTracks(); }
+
+/* ================= EVENTOS DE LA LISTA ================= */
+const tl = document.getElementById('tracklist');
+
+tl.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]');
+  if (!el || el.tagName === 'INPUT' || el.tagName === 'FORM' || el.tagName === 'TEXTAREA') return;
+  const act = el.dataset.act, i = +el.dataset.i;
+  if (act === 'toggle') { openCards.has(i) ? openCards.delete(i) : openCards.add(i); }
+  else if (act === 'tagpanel') { openTags.has(i) ? openTags.delete(i) : openTags.add(i); }
+  else if (act === 'deltag') {
+    e.preventDefault();
+    const id = el.dataset.id;
+    if (!confirm('¿Eliminar esta etiqueta de todas las canciones?')) return;
+    state.customTags = state.customTags.filter(x => x.id !== id);
+    Object.values(state.albums).forEach(al => Object.values(al.tracks).forEach(t => t.tags = t.tags.filter(x => x !== id)));
+  } else return;
+  save(); renderHeader(); renderTracks();
+});
+
+tl.addEventListener('change', e => {
+  const c = e.target.closest('input[data-act="tagcheck"]');
+  if (c) {
+    const d = td(+c.dataset.i), id = c.dataset.id;
+    d.tags = c.checked ? [...new Set([...d.tags, id])] : d.tags.filter(x => x !== id);
+    save(); renderTracks();
+    return;
+  }
+  const r = e.target.closest('input[data-act="rating"]');
+  if (r) {
+    const val = parseRating(r.value);
+    td(+r.dataset.i).rating = val;
+    r.value = val === null ? '' : String(val);
+    save(); renderHeader(); renderTracks();
+  }
+});
+
+tl.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.matches('input[data-act="rating"]')) e.target.blur();
+});
+
+tl.addEventListener('submit', e => {
+  const f = e.target.closest('form[data-act="addtag"]');
+  if (!f) return;
+  e.preventDefault();
+  const label = f.label.value.trim();
+  if (!label) return;
+  state.customTags.push({ id: 'c_' + Date.now(), label, color: f.color.value });
+  save(); renderTracks();
+});
+
+tl.addEventListener('input', e => {
+  const t = e.target.closest('textarea[data-act="notetext"]');
+  if (t) { td(+t.dataset.i).notes = t.value; save(); return; }
+  const r = e.target.closest('input[data-act="rating"]');
+  if (r) {
+    let v = r.value.replace(',', '.').replace(/[^0-9.]/g, '');
+    const p = v.split('.');
+    v = p[0].slice(0, 2) + (p.length > 1 ? '.' + p.slice(1).join('').slice(0, 1) : '');
+    if (r.value !== v) r.value = v;
+  }
+});
+
+// Las notas no re-renderizan al escribir; el indicador 📝 se actualiza al salir del campo
+tl.addEventListener('focusout', e => {
+  if (e.target.matches('textarea[data-act="notetext"]')) {
+    const y = window.scrollY;
+    renderTracks();
+    window.scrollTo(0, y);
+  }
+});
+
+document.getElementById('btnExpand').onclick = () => {
+  (A().album.tracks || []).forEach((_, idx) => openCards.add(idx + 1));
+  renderTracks();
+};
+document.getElementById('btnCollapse').onclick = () => {
+  openCards.clear(); openTags.clear();
+  renderTracks();
+};
+
+/* ================= AJUSTES ================= */
+const modal = document.getElementById('modal'), editor = document.getElementById('jsonEditor'), errBox = document.getElementById('jsonError');
+const userInput = document.getElementById('userName'), ioMsg = document.getElementById('ioMsg');
+
+function openModal() {
+  editor.value = JSON.stringify(A().album, null, 2);
+  userInput.value = state.user;
+  errBox.classList.add('hidden'); ioMsg.classList.add('hidden');
+  modal.classList.remove('hidden'); modal.classList.add('flex');
+}
+const closeModal = () => { modal.classList.add('hidden'); modal.classList.remove('flex'); };
+document.getElementById('btnSettings').onclick = openModal;
+document.getElementById('btnClose').onclick = closeModal;
+modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+function msg(text, isError) {
+  ioMsg.classList.remove('hidden');
+  ioMsg.textContent = text;
+  ioMsg.className = 'text-sm mt-3 ' + (isError ? 'text-red-400' : 'accent-text');
+}
+
+userInput.addEventListener('input', () => {
+  state.user = userInput.value.trim().slice(0, 30);
+  save(); renderUser(); renderHeader();
+});
+
+/* ---- Exportar / importar ---- */
+function buildExport() {
+  return {
+    app: 'diario-discos', version: 3,
+    user: state.user || '',
+    exportedAt: new Date().toISOString(),
+    current: state.current,
+    customTags: state.customTags,
+    albums: state.albums
+  };
+}
+
+document.getElementById('btnDownload').onclick = () => {
+  const blob = new Blob([JSON.stringify(buildExport(), null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `diario-discos-${slug(state.user) || 'sin-usuario'}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  msg('Archivo descargado: ' + a.download);
+};
+
+document.getElementById('btnExport').onclick = async () => {
+  try { await navigator.clipboard.writeText(JSON.stringify(buildExport(), null, 2)); msg('JSON copiado al portapapeles.'); }
+  catch (e) { msg('No se pudo copiar. Usa el botón de descarga.', true); }
+};
+
+function normalizeEntry(e) {
+  if (!e || !e.album || !e.album.title || !Array.isArray(e.album.tracks) || !e.album.tracks.length) return null;
+  const al = e.album;
+  const out = {
+    album: {
+      title: String(al.title), artist: String(al.artist ?? ''), year: al.year ?? '', genre: String(al.genre ?? ''),
+      cover: String(al.cover ?? ''), source: String(al.source ?? ''),
+      tracks: al.tracks.filter(t => t && t.title).map(t => ({ title: String(t.title), duration: String(t.duration || '—') }))
+    },
+    albumNotes: String(e.albumNotes ?? ''),
+    tracks: {},
+    theme: (e.theme && isFinite(e.theme.h) && isFinite(e.theme.s)) ? { h: +e.theme.h, s: +e.theme.s } : null
+  };
+  Object.entries(e.tracks || {}).forEach(([k, t]) => {
+    if (!t) return;
+    out.tracks[k] = {
+      rating: cleanRating(t.rating),
+      tags: Array.isArray(t.tags) ? t.tags.map(String) : [],
+      notes: String(t.notes ?? '')
+    };
+  });
+  return out;
+}
+
+async function importData(data) {
+  if (!data || data.app !== 'diario-discos' || !data.albums || typeof data.albums !== 'object')
+    throw new Error('el archivo no tiene el formato de este diario.');
+  const entries = Object.entries(data.albums).map(([k, v]) => [k, normalizeEntry(v)]).filter(([, v]) => v);
+  if (!entries.length) throw new Error('el archivo no contiene discos válidos.');
+  const who = data.user ? ` de "${data.user}"` : '';
+  if (!confirm(`Se combinarán ${entries.length} disco(s)${who} con tu biblioteca. Si ya tienes un disco igual, sus calificaciones y notas se reemplazarán por las del archivo. ¿Continuar?`)) return;
+
+  entries.forEach(([k, v]) => { state.albums[k] = v; });
+  (Array.isArray(data.customTags) ? data.customTags : []).forEach(t => {
+    if (t && t.id && t.label && /^#[0-9a-f]{6}$/i.test(t.color || '') && !state.customTags.some(x => x.id === t.id))
+      state.customTags.push({ id: String(t.id), label: String(t.label), color: t.color });
+  });
+  if (data.user && !state.user) { state.user = String(data.user).slice(0, 30); userInput.value = state.user; }
+  save(); renderLibrary(); renderAll();
+  await ensureTheme(); renderAll();
+  msg(`Se cargaron ${entries.length} disco(s) correctamente.`);
+}
+
+document.getElementById('fileImport').addEventListener('change', async ev => {
+  const f = ev.target.files[0];
+  ev.target.value = '';
+  if (!f) return;
+  try { await importData(JSON.parse(await f.text())); }
+  catch (err) { msg('No se pudo cargar el archivo: ' + err.message, true); }
+});
+
+/* ---- Editor del disco actual ---- */
+document.getElementById('btnApply').onclick = async () => {
+  try {
+    const a = JSON.parse(editor.value);
+    if (!a.title || !a.artist || !Array.isArray(a.tracks) || !a.tracks.length)
+      throw new Error('Se requiere "title", "artist" y "tracks" con al menos una canción.');
+    a.tracks.forEach((t, k) => { if (!t.title) throw new Error(`La pista ${k + 1} no tiene "title".`); t.duration = t.duration || '—'; });
+    a.year = a.year ?? ''; a.genre = a.genre ?? ''; a.cover = a.cover ?? '';
+    const cur = A().album;
+    if (a.title === cur.title && a.artist === cur.artist) {
+      const coverChanged = a.cover !== cur.cover;
+      A().album = a; if (coverChanged) A().theme = null;
+      save(); closeModal(); await ensureTheme(); renderAll();
+    } else {
+      a.source = a.source || 'Manual';
+      const key = 'custom-' + slug(a.artist + '-' + a.title);
+      if (!state.albums[key]) state.albums[key] = blankEntry(a);
+      closeModal(); await switchTo(key);
+    }
+    renderLibrary();
+  } catch (err) { errBox.textContent = 'JSON inválido: ' + err.message; errBox.classList.remove('hidden'); }
+};
+
+document.getElementById('btnExample').onclick = () => {
+  if (!state.albums.example) state.albums.example = blankEntry(EXAMPLE_ALBUM);
+  closeModal(); switchTo('example');
+};
+document.getElementById('btnReset').onclick = () => {
+  if (!confirm('Se borrarán calificaciones, etiquetas marcadas y notas de ESTE disco. ¿Continuar?')) return;
+  A().albumNotes = ''; A().tracks = {}; openCards.clear(); openTags.clear();
+  save(); renderAll(); closeModal();
+};
+document.getElementById('btnDelete').onclick = () => {
+  if (Object.keys(state.albums).length < 2) { alert('Debes tener al menos un disco en la biblioteca.'); return; }
+  if (!confirm('Se eliminará este disco y todas sus notas de tu biblioteca. ¿Continuar?')) return;
+  delete state.albums[state.current];
+  closeModal(); switchTo(Object.keys(state.albums)[0]);
+};
+
+/* ================= INICIO ================= */
+(async function init() {
+  renderLibrary(); renderAll();
+  await ensureTheme();
+  renderAll();
+})();
+</script>
+</body>
+</html>
